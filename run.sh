@@ -2,10 +2,13 @@
 
 set -ex
 
-docker run \
-  --privileged \
-  -e DOCKER_DAEMON_ARGS="-s devicemapper -D -l debug" \
-  --rm \
-  -it \
-  fedora:22 \
-  bash -c "curl -o /init.sh https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/init.sh ; chmod +x /init.sh ; /init.sh"
+docker build --tag=d https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/Dockerfile
+
+for module in $(find . -maxdepth 1 -type d -not -path "." -not -path "./.git") ; do
+  docker run \
+    --privileged \
+    -e DOCKER_DAEMON_ARGS="-D -l debug" \  # -s <graph_backend>
+    --rm \
+    -it \
+    d $module
+done

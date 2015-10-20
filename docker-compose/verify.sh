@@ -16,7 +16,7 @@ cd /
 mkdir awesome_web
 cd awesome_web
 mkdir db
-sudo chown 26:26 db
+chown 26:26 db
 cat >docker-compose.yml <<EOF
 web:
   image: fedora-django
@@ -35,6 +35,23 @@ db:
    - POSTGRESQL_USER=awesome_web_user
    - POSTGRESQL_PASSWORD=secret_password
 EOF
+
+cat >>awesome_web/awesome_web/settings.py <<EOF
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'awesome_web',
+        'USER': 'awesome_web_user',
+        'PASSWORD': 'secret_password',
+        'HOST': 'db',
+        'PORT': 5432,
+    }
+}
+EOF
+
 docker-compose run web django-admin startproject awesome_web .
 chown -R $UID:$UID awesome_web
-
+docker-compose up -d db
+docker-compose run web python manage.py migrate
+docker-compose up -d
+elinks -dump http://$(docker inspect -f '{{ .NetworkSettings.IPAddress }}' awesomeweb_web_1):8000
