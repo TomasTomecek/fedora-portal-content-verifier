@@ -36,6 +36,9 @@ db:
    - POSTGRESQL_PASSWORD=secret_password
 EOF
 
+docker-compose run web django-admin startproject awesome_web .
+chown -R $UID:$UID awesome_web
+
 cat >>awesome_web/awesome_web/settings.py <<EOF
 DATABASES = {
     'default': {
@@ -49,8 +52,6 @@ DATABASES = {
 }
 EOF
 
-docker-compose run web django-admin startproject awesome_web .
-chown -R $UID:$UID awesome_web
 docker-compose up -d db
 docker-compose run web python manage.py migrate
 docker-compose up -d
