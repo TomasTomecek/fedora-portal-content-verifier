@@ -1,7 +1,9 @@
 machine:
+  python:
+    version: 2.7.10
   services:
     - docker
 
 test:
   override:
-    - ./run.sh
+    - ./run.py

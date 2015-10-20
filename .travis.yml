@@ -1,7 +1,10 @@
 sudo: required
 
+python:
+  - "2.7"
+
 services:
   - docker
 
 script:
-  - ./run.sh
+  - ./run.py
