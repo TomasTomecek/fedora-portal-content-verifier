@@ -2,15 +2,19 @@
 
 set -ex
 
+# prereq #1 -- docker-compose package
+
 dnf install -y docker-compose \
   git  # used during the guide
 
-prepare_docker_images() {
-  cd /
-  git clone https://github.com/fedora-cloud/Fedora-Dockerfiles
-  docker build --tag=fedora-django Fedora-Dockerfiles/Django
-  docker build --tag=fedora-postgresql Fedora-Dockerfiles/postgresql
-}
+# prereq #2 -- images used in the guide
+
+cd /
+git clone https://github.com/fedora-cloud/Fedora-Dockerfiles
+docker build --tag=fedora-django Fedora-Dockerfiles/Django
+docker build --tag=fedora-postgresql Fedora-Dockerfiles/postgresql
+
+# guide testing
 
 cd /
 mkdir awesome_web
