@@ -2,6 +2,8 @@
 
 set -ex
 
+echo "Running init.sh with args ${@}"
+
 cd /
 
 git clone https://github.com/TomasTomecek/fedora-portal-content-verifier repo
