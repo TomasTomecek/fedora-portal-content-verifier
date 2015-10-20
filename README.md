@@ -1,4 +1,5 @@
 [![Circle CI](https://circleci.com/gh/TomasTomecek/fedora-portal-content-verifier.svg?style=svg)](https://circleci.com/gh/TomasTomecek/fedora-portal-content-verifier)
+[![Build Status](https://travis-ci.org/TomasTomecek/fedora-portal-content-verifier.svg)](https://travis-ci.org/TomasTomecek/fedora-portal-content-verifier)
 
 # fedora-portal-content-verifier
 
