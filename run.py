@@ -56,6 +56,7 @@ class Runner(object):
         """
         tmpdir = tempfile.mkdtemp()
         try:
+            subprocess.check_call(["dnf", "install", "-y", "git"])
             subprocess.check_call(
                 [
                     "git",
