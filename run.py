@@ -58,8 +58,10 @@ class Runner(object):
         """
         run provided test in current environment
         """
+        logging.info("running locally")
         tmpdir = tempfile.mkdtemp()
         try:
+            logging.debug("install git and checkout repo")
             subprocess.check_call(["dnf", "install", "-y", "git"])
             subprocess.check_call(
                 [
@@ -70,6 +72,7 @@ class Runner(object):
                 ],
                 cwd=tmpdir
             )
+            logging.info("execute verify script")
             subprocess.check_call("./%s/verify.sh" % self.module_name, cwd=os.path.join(tmpdir, "repo"))
         finally:
             shutil.rmtree(tmpdir)
