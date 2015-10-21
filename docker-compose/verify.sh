@@ -4,7 +4,7 @@ set -ex
 
 # prereq #1 -- docker-compose package
 
-dnf install -y docker-compose git elinks
+dnf install -y docker-compose git elinks docker
 
 
 # prereq #2 -- images used in the guide
