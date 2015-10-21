@@ -28,7 +28,7 @@ set -ex ; \
 cd / ; \
 curl -sSL -O https://get.docker.com/builds/Linux/x86_64/docker-1.6.2 ; \
 chmod +x docker-1.6.2 ; \
-sudo mv docker-1.6.2 /usr/local/bin/docker ; \
+mv docker-1.6.2 /usr/local/bin/docker ; \
 curl -s -o /run.py https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/run.py ; \
 chmod +x /run.py ; \
 exec /run.py --local {module_name:s} \
