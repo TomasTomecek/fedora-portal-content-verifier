@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 
+"""
+TODO:
+ * use docker-py & get rid of subprocess
+"""
+
 import os
+import argparse
 import logging
 import subprocess
 
@@ -14,17 +20,46 @@ CI_ENV_VARS = [
 
 IGNORE_MODULES = [".git", "venv"]
 
+DOWNLOAD_AND_RUN_TEST_SH = """\
+curl -o /run.py https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/run.py ; \
+chmod +x /run.py ; \
+exec /run.py --local %(module_name)s \
+"""
+
 
 class Runner(object):
-    def __init__(self):
-        self.module_name = None
+    def __init__(self, module_name=None):
+        self.module_name = module_name
 
     def _run_in_ci(self):
         """
-        run provided test
+        in CI, we have clean docker environment (dind most likely)
+
+        let's spawn new container (fedora), bindmount docker socket there and
+        run all tests in such env
         """
-        logging.info("running in CI: run localy test for module %r", self.module_name)
-        subprocess.check_call("./%s/verify.sh" % self.module_name)
+        logging.info("running in CI: run test for module %r", self.module_name)
+        subprocess.check_call([
+            "docker", "run",
+            "-v /run/docker.sock:/run/docker.sock",
+            "--rm", "-it",
+            "fedora", "bash -c \"%s\"" % DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name)
+        ])
+
+    def run_locally(self):
+        """
+        run provided test in current environment
+        """
+        subprocess.check_call(
+            [
+                "git",
+                "clone",
+                "https://github.com/TomasTomecek/fedora-portal-content-verifier",
+                "repo",
+            ],
+            cwd="/"
+        )
+        subprocess.check_call("./%s/verify.sh" % self.module_name, cwd="/repo/")
 
     def _run_nested(self):
         """
@@ -72,4 +107,23 @@ class Overlord(object):
         for m in modules:
             self.runner.run(m)
 
-Overlord().run()
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="run tests in fresh clean container",
+    )
+    parser.add_argument("--init", action="store_true", help="initiate tests for all modules")
+    parser.add_argument("--local", action="store", help="run test for provided module in current environment")
+    # parser.add_argument("--inject", action="store_true", help="spawn new container, mount docker socket inside and run provided test there")
+    args = parser.parse_args()
+
+    if args.local:
+        r = Runner(args.local)
+        r.run_locally()
+    else:  # --init is default
+        Overlord().run()
+
+
+if __name__ == "__main__":
+    main()
+
