@@ -41,7 +41,8 @@ db:
 EOF
 
 docker-compose run web django-admin startproject awesome_web .
-chown -R $UID:$UID awesome_web
+ls -lha .
+chown -R $UID:$UID ./awesome_web
 
 cat >>awesome_web/awesome_web/settings.py <<EOF
 DATABASES = {
