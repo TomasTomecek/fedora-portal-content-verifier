@@ -6,6 +6,7 @@ TODO:
 """
 
 import os
+import pipes
 import argparse
 import logging
 import subprocess
@@ -41,9 +42,9 @@ class Runner(object):
         logging.info("running in CI: run test for module %r", self.module_name)
         subprocess.check_call([
             "docker", "run",
-            "-v /run/docker.sock:/run/docker.sock",
+            "-v", "/run/docker.sock:/run/docker.sock",
             "--rm", "-it",
-            "fedora", "bash -c \"%s\"" % DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name)
+            "fedora", "bash", "-c", pipes.quote(DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name))
         ])
 
     def run_locally(self):
