@@ -10,6 +10,8 @@ import pipes
 import argparse
 import logging
 import subprocess
+import tempfile
+import shutil
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -22,9 +24,10 @@ CI_ENV_VARS = [
 IGNORE_MODULES = [".git", "venv"]
 
 DOWNLOAD_AND_RUN_TEST_SH = """\
-curl -o /run.py https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/run.py ; \
+set -ex ; \
+curl -s -o /run.py https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/run.py ; \
 chmod +x /run.py ; \
-exec /run.py --local %(module_name)s \
+exec /run.py --local {module_name:s} \
 """
 
 
@@ -43,24 +46,28 @@ class Runner(object):
         subprocess.check_call([
             "docker", "run",
             "-v", "/run/docker.sock:/run/docker.sock",
-            "--rm", "-it",
-            "fedora", "bash", "-c", pipes.quote(DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name))
+            "--rm",
+            "fedora", "bash", "-c", DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name)
         ])
 
     def run_locally(self):
         """
         run provided test in current environment
         """
-        subprocess.check_call(
-            [
-                "git",
-                "clone",
-                "https://github.com/TomasTomecek/fedora-portal-content-verifier",
-                "repo",
-            ],
-            cwd="/"
-        )
-        subprocess.check_call("./%s/verify.sh" % self.module_name, cwd="/repo/")
+        tmpdir = tempfile.mkdtemp()
+        try:
+            subprocess.check_call(
+                [
+                    "git",
+                    "clone",
+                    "https://github.com/TomasTomecek/fedora-portal-content-verifier",
+                    "repo",
+                ],
+                cwd=tmpdir
+            )
+            subprocess.check_call("./%s/verify.sh" % self.module_name, cwd=os.path.join(tmpdir, "repo"))
+        finally:
+            shutil.rmtree(tmpdir)
 
     def _run_nested(self):
         """
