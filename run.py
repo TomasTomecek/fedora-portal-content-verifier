@@ -12,6 +12,8 @@ CI_ENV_VARS = [
     "CIRCLECI"
 ]
 
+IGNORE_MODULES = [".git", "venv"]
+
 
 class Runner(object):
     def __init__(self):
@@ -57,7 +59,7 @@ class Overlord(object):
 
     def find_modules(self):
         def module_filter(d):
-            return os.path.isdir(os.path.join(root_dir, d)) and d != ".git"
+            return os.path.isdir(os.path.join(root_dir, d)) and d not in IGNORE_MODULES
         root_dir = os.path.abspath(os.path.dirname(__file__))
         logging.debug("root_dir = %r", root_dir)
         all_files = os.listdir(root_dir)
