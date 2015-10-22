@@ -46,7 +46,8 @@ class Runner(object):
         let's spawn new container (fedora), bindmount docker socket there and
         run all tests in such env
         """
-        logging.info("running in CI: run test for module %r", self.module_name)
+        logging.info("running test in container: run test for module %r", self.module_name)
+        self._install_docker()
         if self.spawn_dind:
             wrapdocker_path = os.path.join(REPO_PATH, "wrapdocker")
             subprocess.check_call([wrapdocker_path])
@@ -58,14 +59,7 @@ class Runner(object):
             IMAGE, "--local"
         ])
 
-    def run_locally(self):
-        """
-        run provided test in current environment
-        """
-        logging.info("running locally")
-
-        # we need to install correct docker first
-
+    def _install_docker(self):
         d = docker.AutoVersionClient()
         version_chain = d.version()["Version"]
         version = re.findall(r"(\d+\.\d+\.\d+)", version_chain)[0]
@@ -82,6 +76,14 @@ class Runner(object):
                     if chunk:
                         fd.write(chunk)
             os.chmod(DOCKER_BIN_PATH, "0755")
+
+    def run_locally(self):
+        """
+        run provided test in current environment
+        """
+        logging.info("running locally")
+
+        self._install_docker()
 
         logging.info("execute verify script")
         verify_script_path = os.path.join(REPO_PATH, CONTENT_PATH, self.module_name, SCRIPT_NAME)
