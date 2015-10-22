@@ -2,16 +2,16 @@
 
 """
 TODO:
- * use docker-py & get rid of subprocess
 """
 
 import os
-import pipes
+import re
 import argparse
 import logging
 import subprocess
-import tempfile
-import shutil
+
+import docker
+import requests
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -21,25 +21,25 @@ CI_ENV_VARS = [
     "CIRCLECI"
 ]
 
-IGNORE_MODULES = [".git", "venv"]
+REPO_PATH = "/repo"
+CONTENT_PATH = "content/"
+SCRIPT_NAME = "verify.sh"
 
-DOWNLOAD_AND_RUN_TEST_SH = """\
-set -ex ; \
-cd / ; \
-curl -sSL -O https://get.docker.com/builds/Linux/x86_64/docker-1.6.2 ; \
-chmod +x docker-1.6.2 ; \
-mv docker-1.6.2 /usr/local/bin/docker ; \
-curl -s -o /run.py https://raw.githubusercontent.com/TomasTomecek/fedora-portal-content-verifier/master/run.py ; \
-chmod +x /run.py ; \
-exec /run.py --local {module_name:s} \
-"""
+IMAGE = "tomastomecek/fedora-portal-content-verifier"
+
+DOCKER_BINS = "https://get.docker.com/builds/Linux/x86_64/docker-{version:s}"
+DOCKER_BIN_PATH = "/usr/local/bin/docker"
 
 
 class Runner(object):
-    def __init__(self, module_name=None):
+    def __init__(self, module_name=None, nested=False, spawn_dind=False):
         self.module_name = module_name
+        self.nested = nested
+        if spawn_dind:
+            self.spawn_dind = True
+            self.module_name = spawn_dind
 
-    def _run_in_ci(self):
+    def _run_in_container(self):
         """
         in CI, we have clean docker environment (dind most likely)
 
@@ -47,11 +47,15 @@ class Runner(object):
         run all tests in such env
         """
         logging.info("running in CI: run test for module %r", self.module_name)
+        if self.spawn_dind:
+            wrapdocker_path = os.path.join(REPO_PATH, "wrapdocker")
+            subprocess.check_call([wrapdocker_path])
+
         subprocess.check_call([
             "docker", "run",
             "-v", "/run/docker.sock:/run/docker.sock",
             "--rm",
-            "fedora", "bash", "-c", DOWNLOAD_AND_RUN_TEST_SH.format(module_name=self.module_name)
+            IMAGE, "--local"
         ])
 
     def run_locally(self):
@@ -59,34 +63,41 @@ class Runner(object):
         run provided test in current environment
         """
         logging.info("running locally")
-        tmpdir = tempfile.mkdtemp()
-        try:
-            logging.debug("install git and checkout repo")
-            subprocess.check_call(["dnf", "install", "-y", "git"])
-            subprocess.check_call(
-                [
-                    "git",
-                    "clone",
-                    "https://github.com/TomasTomecek/fedora-portal-content-verifier",
-                    "repo",
-                ],
-                cwd=tmpdir
-            )
-            logging.info("execute verify script")
-            subprocess.check_call("./%s/verify.sh" % self.module_name, cwd=os.path.join(tmpdir, "repo"))
-        finally:
-            shutil.rmtree(tmpdir)
+
+        # we need to install correct docker first
+
+        d = docker.AutoVersionClient()
+        version_chain = d.version()["Version"]
+        version = re.findall(r"(\d+\.\d+\.\d+)", version_chain)[0]
+        is_fedora = bool(re.findall(r"-fc\d{2}$", version_chain))
+        if is_fedora:
+            logging.info("docker server is fedora")
+            subprocess.check_call(["dnf", "install", "-y", "docker"])
+        else:
+            logging.info("get docker %r from docker", version)
+            url = DOCKER_BINS.format(version=version)
+            r = requests.get(url, stream=True)
+            with open(DOCKER_BIN_PATH, "wb") as fd:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        fd.write(chunk)
+            os.chmod(DOCKER_BIN_PATH, "0755")
+
+        logging.info("execute verify script")
+        verify_script_path = os.path.join(REPO_PATH, CONTENT_PATH, self.module_name, SCRIPT_NAME)
+        subprocess.check_call(verify_script_path)
 
     def _run_nested(self):
         """
-        spawn new docker and run a provided test
+        1. spawn new privileged container with dind inside
+        2. use CI method
         """
         subprocess.check_call([
             "docker", "run",
             "--privileged",
-            "-e DOCKER_DAEMON_ARGS=\"-D -l debug\"",
+            "-e", "DOCKER_DAEMON_ARGS=\"-D -l debug\"",
             "--rm", "-it",
-            "d", self.module_name
+            IMAGE, "--spawn-dind", self.module_name
         ])
 
     def run(self, module_name):
@@ -94,10 +105,11 @@ class Runner(object):
         run test for provided module
         """
         self.module_name = module_name
-        if set(os.environ.keys()).intersection(CI_ENV_VARS):
-            self._run_in_ci()
-        else:
+        if self.nested:
             self._run_nested()
+        # elif set(os.environ.keys()).intersection(CI_ENV_VARS):
+        else:
+            self._run_in_container()
 
 
 class Overlord(object):
@@ -105,17 +117,17 @@ class Overlord(object):
     find all modules and run their tests
     """
 
-    def __init__(self):
-        self.runner = Runner()
+    def __init__(self, nested=False, spawn_dind=False):
+        self.runner = Runner(nested=nested, spawn_dind=spawn_dind)
 
     def find_modules(self):
-        def module_filter(d):
-            return os.path.isdir(os.path.join(root_dir, d)) and d not in IGNORE_MODULES
         root_dir = os.path.abspath(os.path.dirname(__file__))
         logging.debug("root_dir = %r", root_dir)
-        all_files = os.listdir(root_dir)
-        logging.debug("all_files = %s", all_files)
-        return [x for x in all_files if module_filter(x)]
+        content_dir = os.path.join(root_dir, CONTENT_PATH)
+        logging.debug("content_dir = %s", content_dir)
+        modules = os.listdir(content_dir)
+        logging.debug("modules = %s", modules)
+        return modules
 
     def run(self):
         modules = self.find_modules()
@@ -129,15 +141,17 @@ def main():
         description="run tests in fresh clean container",
     )
     parser.add_argument("--init", action="store_true", help="initiate tests for all modules")
+    parser.add_argument("--nested", action="store_true", help="run all modules in a container which spawns dind")
+
     parser.add_argument("--local", action="store", help="run test for provided module in current environment")
-    # parser.add_argument("--inject", action="store_true", help="spawn new container, mount docker socket inside and run provided test there")
+    parser.add_argument("--spawn-dind", action="store", help="spawn dind and run test in a new container")
     args = parser.parse_args()
 
     if args.local:
         r = Runner(args.local)
         r.run_locally()
     else:  # --init is default
-        Overlord().run()
+        Overlord(nested=args.nested, spawn_dind=args.spawn_dind).run()
 
 
 if __name__ == "__main__":
