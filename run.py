@@ -62,8 +62,8 @@ class Runner(object):
 
     def _install_docker(self):
         logging.info("install docker in current environment")
-        d = docker.AutoVersionClient()
         try:
+            d = docker.AutoVersionClient()
             version_chain = d.version()["Version"]
         except Exception as ex:
             logging.debug("%r", ex)
