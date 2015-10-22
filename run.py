@@ -49,6 +49,7 @@ class Runner(object):
         logging.info("running test in container: run test for module %r", self.module_name)
         self._install_docker()
         if self.spawn_dind:
+            logging.info("running wrapdocker")
             wrapdocker_path = os.path.join(REPO_PATH, "wrapdocker")
             subprocess.check_call([wrapdocker_path])
 
@@ -60,10 +61,19 @@ class Runner(object):
         ])
 
     def _install_docker(self):
+        logging.info("install docker in current environment")
         d = docker.AutoVersionClient()
-        version_chain = d.version()["Version"]
-        version = re.findall(r"(\d+\.\d+\.\d+)", version_chain)[0]
-        is_fedora = bool(re.findall(r"-fc\d{2}$", version_chain))
+        try:
+            version_chain = d.version()["Version"]
+        except Exception as ex:
+            logging.debug("%r", ex)
+            with open("/etc/issue") as fd:
+                is_fedora = "Fedora" in fd.read()
+                version = "1.8.2"
+        else:
+            version = re.findall(r"(\d+\.\d+\.\d+)", version_chain)[0]
+            is_fedora = bool(re.findall(r"-fc\d{2}$", version_chain))
+
         if is_fedora:
             logging.info("docker server is fedora")
             subprocess.check_call(["dnf", "install", "-y", "docker"])
@@ -133,7 +143,6 @@ class Overlord(object):
 
     def run(self):
         modules = self.find_modules()
-        logging.debug("modules = %s", modules)
         for m in modules:
             self.runner.run(m)
 
